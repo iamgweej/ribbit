@@ -21,3 +21,11 @@ If you wanna debug your 32 bit shellcode make sure youre building `ribbit` to 32
 
 It just does what it says - it takes a payload, allocates RWE memory using `VirtualAlloc`, and then `CreateThread` having its `lpStartAddress` be the start of that memory. `ribbit` then `WaitForSingleObject`s on that thread, `VirtualFree`ing the mapped memory, terminating afterwards.
 
+## TODO
+
+* Change the `VirtualAlloc` memory stuff to a `impl Drop` for automatic cleanup using `VirtualFree`.
+* Change the `CreateThread` `HANDLE` stuff to a `impl Drop` for automatic handle cleanup using `CloseHandle`.
+* Wrap the `HANDLE` and `[u8]` with actual safe structures.
+* Consider supporting more input options:
+  * Raw assembly?
+* More source code files!
