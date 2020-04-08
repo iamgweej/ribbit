@@ -1,8 +1,10 @@
+use std::mem;
 use std::ptr;
 use std::slice;
 
 use winapi::um::errhandlingapi;
 use winapi::um::handleapi;
+use winapi::um::libloaderapi;
 use winapi::um::memoryapi;
 use winapi::um::processthreadsapi;
 use winapi::um::synchapi;
@@ -97,4 +99,55 @@ impl RawThread {
             Err(unsafe { errhandlingapi::GetLastError() })
         }
     }
+}
+
+// exit_thread_shellcode = if cfg!(target_arch="x86") {
+//     vec![0x6au8, 0x00u8]
+// } else {
+//     println!("x64");
+// }
+pub fn exit_thread_shellcode() -> Result<Vec<u8>, u32> {
+    let kernel32 = unsafe {
+        let kernel32 = libloaderapi::GetModuleHandleA("kernel32.dll\x00".as_ptr() as winnt::LPCSTR);
+        if kernel32.is_null() {
+            // eprintln!("1");
+            Err(errhandlingapi::GetLastError())
+        } else {
+            Ok(kernel32)
+        }
+    }?;
+
+    let addr = unsafe {
+        let addr =
+            libloaderapi::GetProcAddress(kernel32, "ExitThread\x00".as_ptr() as winnt::LPCSTR);
+        if addr.is_null() {
+            eprintln!("2");
+            Err(errhandlingapi::GetLastError())
+        } else {
+            Ok(addr)
+        }
+    }? as usize;
+
+    let addr_bin = addr.to_le_bytes();
+
+    let sc = if cfg!(target_arch = "x86") {
+        // push 0
+        // mov eax, `ExitThread`
+        // call eax
+        let mut part = vec![0x6a, 0x00, 0xb8, 0x41, 0x41, 0x41, 0x41, 0xff, 0xd0];
+        part[3..7].copy_from_slice(&addr_bin);
+        part
+    } else {
+        // xor rcx, rcx
+        // mov rax, `ExitThread`
+        // call rax
+        let mut part = vec![
+            0x48, 0x32, 0xc9, 0x48, 0xb8, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0xff,
+            0xd0,
+        ];
+        part[5..13].copy_from_slice(&addr_bin);
+        part
+    };
+
+    Ok(sc)
 }

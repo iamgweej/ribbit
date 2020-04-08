@@ -42,6 +42,11 @@ fn main() -> Result<(), u32> {
                 .help("Insert a `\\xCC` instruction before the shellcode")
                 .short("b"),
         )
+        .arg(
+            Arg::with_name("exitthread")
+                .help("Append an `ExitThread(0)` call to the end of the shellcode")
+                .short("x"),
+        )
         .subcommand(
             SubCommand::with_name("binfile")
                 .about("Run shellcode from given file")
@@ -88,6 +93,10 @@ fn main() -> Result<(), u32> {
 
     if matches.is_present("breakpoint") {
         sc.insert(0, 0xccu8);
+    }
+
+    if matches.is_present("exitthread") {
+        sc.extend(win_core::exit_thread_shellcode()?);
     }
 
     logic(sc)

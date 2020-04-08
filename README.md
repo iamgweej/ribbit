@@ -28,3 +28,4 @@ It just does what it says - it takes a payload, allocates RWE memory using `Virt
 - [X] Wrap the `HANDLE` and `[u8]` with actual safe structures.
 - [ ] Consider supporting more input options:
 - [X] More source code files!
+- [X] Add an `ExitThread` option that adds an `ExitThread(0)` shellcode to the end of the original shellcode for easy cleanup.
