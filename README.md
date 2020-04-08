@@ -23,9 +23,8 @@ It just does what it says - it takes a payload, allocates RWE memory using `Virt
 
 ## TODO
 
-* Change the `VirtualAlloc` memory stuff to a `impl Drop` for automatic cleanup using `VirtualFree`.
-* Change the `CreateThread` `HANDLE` stuff to a `impl Drop` for automatic handle cleanup using `CloseHandle`.
-* Wrap the `HANDLE` and `[u8]` with actual safe structures.
-* Consider supporting more input options:
-  * Raw assembly?
-* More source code files!
+- [X] Change the `VirtualAlloc` memory stuff to a `impl Drop` for automatic cleanup using `VirtualFree`.
+- [X] Change the `CreateThread` `HANDLE` stuff to a `impl Drop` for automatic handle cleanup using `CloseHandle`.
+- [X] Wrap the `HANDLE` and `[u8]` with actual safe structures.
+- [ ] Consider supporting more input options:
+- [X] More source code files!

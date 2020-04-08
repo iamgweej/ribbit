@@ -1,79 +1,15 @@
-use std::fs;
-use std::ptr;
-use std::slice;
-
-use hex;
-
-use winapi::ctypes;
-use winapi::um::errhandlingapi;
-use winapi::um::memoryapi;
-use winapi::um::processthreadsapi;
-use winapi::um::synchapi;
-use winapi::um::winbase;
-use winapi::um::winnt;
+mod win_core;
 
 use clap::{App, Arg, SubCommand};
-
-// TODO: consider returning a slice.
-fn allocate(size: usize) -> Result<*mut u8, u32> {
-    let p: *mut u8;
-    unsafe {
-        p = memoryapi::VirtualAlloc(
-            ptr::null_mut(),
-            size,
-            winnt::MEM_COMMIT | winnt::MEM_RESERVE,
-            winnt::PAGE_EXECUTE_READWRITE,
-        ) as *mut u8;
-    };
-    if p.is_null() {
-        // TODO: this can be a macro.
-        unsafe { Err(errhandlingapi::GetLastError()) }
-    } else {
-        Ok(p)
-    }
-}
-
-fn run(start: &[u8]) -> Result<winnt::HANDLE, u32> {
-    let mut tid = 0u32;
-    let thread_handle: winnt::HANDLE;
-    let ep: extern "system" fn(*mut ctypes::c_void) -> u32 =
-        unsafe { std::mem::transmute(start.as_ptr()) };
-    unsafe {
-        thread_handle = processthreadsapi::CreateThread(
-            ptr::null_mut(),
-            0,
-            Some(ep),
-            ptr::null_mut(),
-            0,
-            &mut tid,
-        );
-    }
-    if thread_handle.is_null() {
-        // TODO: this can be a macro.
-        unsafe { Err(errhandlingapi::GetLastError()) }
-    } else {
-        Ok(thread_handle)
-    }
-}
-
-fn wait(h: winnt::HANDLE) -> Result<(), u32> {
-    let status: u32;
-    unsafe {
-        status = synchapi::WaitForSingleObject(h, winbase::INFINITE);
-    }
-    if status == 0 {
-        Ok(())
-    } else {
-        unsafe { Err(errhandlingapi::GetLastError()) }
-    }
-}
+use hex;
+use std::fs;
 
 fn logic(shellcode: Vec<u8>) -> Result<(), u32> {
-    let p = unsafe { slice::from_raw_parts_mut(allocate(shellcode.len())?, shellcode.len()) };
-    p[..shellcode.len()].copy_from_slice(shellcode.as_slice());
-    let h = run(p)?;
-    wait(h)?;
-    Ok(())
+    let mut mm = win_core::MappedMemory::new(shellcode.len())?;
+    let mms = mm.as_slice_mut();
+    mms[..shellcode.len()].copy_from_slice(shellcode.as_slice());
+    let t = unsafe { win_core::RawThread::run(mm.as_ptr()) }?;
+    t.wait_forever()
 }
 
 fn binfile(path: &str) -> Option<Vec<u8>> {
@@ -131,7 +67,8 @@ fn main() -> Result<(), u32> {
                 ),
         )
         .get_matches();
- 
+
+    let shellcode = match matches.subcommand() {
         ("binfile", Some(binfile_matches)) => {
             binfile(binfile_matches.value_of("SHELLCODE").unwrap())
         }
