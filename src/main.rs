@@ -1,22 +1,20 @@
+mod utils;
 mod win_core;
 
 use clap::{App, Arg, SubCommand};
 use hex;
+use log::{info, warn};
 use std::fs;
-use log::info;
 use stderrlog;
 
 fn logic(shellcode: Vec<u8>) -> Result<(), u32> {
     info!("Mapping memory for shellcode...");
     let mut mm = win_core::MappedMemory::new(shellcode.len())?;
-    
     info!("Copying shellcode to mapped memory...");
     let mms = mm.as_slice_mut();
     mms[..shellcode.len()].copy_from_slice(shellcode.as_slice());
-    
     info!("Running the shellcode in a new thread...");
     let t = unsafe { win_core::RawThread::run(mm.as_ptr()) }?;
-    
     info!("Waiting for the shellcode to finish...");
     t.wait_forever()
 }
@@ -58,10 +56,14 @@ fn main() -> Result<(), u32> {
         )
         .arg(
             Arg::with_name("verbosity")
-                .short("v")
-                .help("Set display verbosity")
-                .multiple(true)
                 .help("Sets the level of verbosity of the output.")
+                .multiple(true)
+                .short("v"),
+        )
+        .arg(
+            Arg::with_name("nullbytes")
+                .help("Warn about NUL-bytes in the shellcode.")
+                .short("n"),
         )
         .subcommand(
             SubCommand::with_name("binfile")
@@ -111,6 +113,15 @@ fn main() -> Result<(), u32> {
         Some(sc) => sc,
         None => return Err(1),
     };
+
+    if matches.is_present("nullbytes") {
+        if sc.iter().any(|&x| x == 0) {
+            warn!("The shellcode contains nullbytes.");
+            utils::show_nullbytes(sc.as_slice());
+        } else {
+            info!("The shellcode is NUL-free");
+        }
+    }
 
     if matches.is_present("breakpoint") {
         sc.insert(0, 0xccu8);
