@@ -10,6 +10,8 @@ use winapi::um::synchapi;
 use winapi::um::winbase;
 use winapi::um::winnt;
 
+use log::{debug, error};
+
 pub struct MappedMemory {
     ptr: *mut u8,
     len: usize,
@@ -17,6 +19,8 @@ pub struct MappedMemory {
 
 impl Drop for MappedMemory {
     fn drop(&mut self) {
+        debug!("Calling VirtualFree({:?}, 0, MEM_RELEASE)", self.ptr);
+
         unsafe {
             memoryapi::VirtualFree(self.ptr as winnt::PVOID, 0, winnt::MEM_RELEASE);
         }
@@ -30,6 +34,8 @@ impl MappedMemory {
             ptr: ptr::null_mut(),
         };
 
+        debug!("Calling VirtualAlloc(NULL, {}, MEM_COMMIT|MEM_RESERVE, PAGE_EXECUTE_READWRITE)", len);
+
         unsafe {
             mm.ptr = memoryapi::VirtualAlloc(
                 ptr::null_mut(),
@@ -40,8 +46,10 @@ impl MappedMemory {
         };
 
         if mm.ptr.is_null() {
+            error!("VirtualAlloc failed.");
             Err(unsafe { errhandlingapi::GetLastError() })
         } else {
+            debug!("Allocated address: {:?}", mm.ptr);
             Ok(mm)
         }
     }
@@ -62,6 +70,8 @@ pub struct RawThread {
 
 impl Drop for RawThread {
     fn drop(&mut self) {
+        debug!("Calling CloseHandle({:?})", self.h);
+
         unsafe { handleapi::CloseHandle(self.h) };
     }
 }
@@ -74,6 +84,8 @@ impl RawThread {
         };
         let ep: extern "system" fn(winnt::PVOID) -> u32 = { std::mem::transmute(start) };
 
+        debug!("Calling CreateThread(NULL, 0, {:?}, NULL, 0, &tid)", start);
+
         t.h = processthreadsapi::CreateThread(
             ptr::null_mut(),
             0,
@@ -84,32 +96,32 @@ impl RawThread {
         );
 
         if t.h.is_null() {
+            error!("CreateThread failed.");
             Err(errhandlingapi::GetLastError())
         } else {
+            debug!("Thread HANDLE: {:?}", t.h);
             Ok(t)
         }
     }
 
     pub fn wait_forever(&self) -> Result<(), u32> {
+        debug!("Calling WaitForSingleObject({:?}, INFINITE)", self.h);
+
         let status = unsafe { synchapi::WaitForSingleObject(self.h, winbase::INFINITE) };
         if status == 0 {
+            debug!("Thread signaled.");
             Ok(())
         } else {
+            error!("WaitForSingleObject failed ({}).", status);
             Err(unsafe { errhandlingapi::GetLastError() })
         }
     }
 }
 
-// exit_thread_shellcode = if cfg!(target_arch="x86") {
-//     vec![0x6au8, 0x00u8]
-// } else {
-//     println!("x64");
-// }
 pub fn exit_thread_shellcode() -> Result<Vec<u8>, u32> {
     let kernel32 = unsafe {
         let kernel32 = libloaderapi::GetModuleHandleA("kernel32.dll\x00".as_ptr() as winnt::LPCSTR);
         if kernel32.is_null() {
-            // eprintln!("1");
             Err(errhandlingapi::GetLastError())
         } else {
             Ok(kernel32)

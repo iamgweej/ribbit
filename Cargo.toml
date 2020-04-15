@@ -19,3 +19,6 @@ winapi = {version = "0.3.8", features=[
 ]}
 clap = "2.32"
 hex = "0.4.2"
+log = "0.4"
+stderrlog = "0.4"
+

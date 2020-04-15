@@ -3,12 +3,21 @@ mod win_core;
 use clap::{App, Arg, SubCommand};
 use hex;
 use std::fs;
+use log::info;
+use stderrlog;
 
 fn logic(shellcode: Vec<u8>) -> Result<(), u32> {
+    info!("Mapping memory for shellcode...");
     let mut mm = win_core::MappedMemory::new(shellcode.len())?;
+    
+    info!("Copying shellcode to mapped memory...");
     let mms = mm.as_slice_mut();
     mms[..shellcode.len()].copy_from_slice(shellcode.as_slice());
+    
+    info!("Running the shellcode in a new thread...");
     let t = unsafe { win_core::RawThread::run(mm.as_ptr()) }?;
+    
+    info!("Waiting for the shellcode to finish...");
     t.wait_forever()
 }
 
@@ -47,6 +56,13 @@ fn main() -> Result<(), u32> {
                 .help("Append an `ExitThread(0)` call to the end of the shellcode")
                 .short("x"),
         )
+        .arg(
+            Arg::with_name("verbosity")
+                .short("v")
+                .help("Set display verbosity")
+                .multiple(true)
+                .help("Sets the level of verbosity of the output.")
+        )
         .subcommand(
             SubCommand::with_name("binfile")
                 .about("Run shellcode from given file")
@@ -72,6 +88,11 @@ fn main() -> Result<(), u32> {
                 ),
         )
         .get_matches();
+
+    stderrlog::new()
+        .verbosity(matches.occurrences_of("verbosity") as usize)
+        .init()
+        .unwrap();
 
     let shellcode = match matches.subcommand() {
         ("binfile", Some(binfile_matches)) => {
